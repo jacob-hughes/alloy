@@ -127,6 +127,7 @@ pub(crate) fn log_stats() {
         premopt enabled,\
         finalizers registered,\
         finalizers completed,\
+        finalizers elidable,\
         barriers visited,\
         Gc allocated,\
         Box allocated,\
