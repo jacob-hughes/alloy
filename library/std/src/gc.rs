@@ -224,10 +224,6 @@ pub fn thread_registered() -> bool {
     unsafe { bdwgc::GC_thread_is_registered() != 0 }
 }
 
-pub fn keep_alive<T>(ptr: *mut T) {
-    unsafe { bdwgc::GC_keep_alive(ptr as *mut u8) }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // GC API
 ////////////////////////////////////////////////////////////////////////////////
@@ -294,7 +290,11 @@ impl<T: ?Sized> Drop for Gc<T> {
     fn drop(&mut self) {
         #[cfg(feature = "log-stats")]
         GC_COUNTERS.barriers_visited.fetch_add(1, atomic::Ordering::Relaxed);
-        keep_alive(self);
+        unsafe {
+            // asm macro clobber by default, so this is enough to introduce a
+            // barrier.
+            core::arch::asm!("/* {0} */", in(reg) self);
+        }
     }
 }
 
