@@ -160,10 +160,11 @@ pub(crate) fn log_stats() {
         Box allocated,\
         Rc allocated,\
         Arc allocated,\
+        Gc reclaimed,\
         num GCs";
     let stats = crate::gc::stats();
     let stats = format!(
-        "{},{},{},{},{},{},{},{},{},{},{},{}\n",
+        "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
         stats.elision_enabled,
         stats.prem_enabled,
         stats.premopt_enabled,
@@ -175,6 +176,7 @@ pub(crate) fn log_stats() {
         stats.allocated_boxed,
         stats.allocated_rc,
         stats.allocated_arc,
+        stats.reclaimed_objects,
         stats.num_gcs
     );
     write!(filename, "{}", format!("{headers}\n{stats}")).unwrap();

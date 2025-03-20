@@ -71,6 +71,7 @@ pub struct GcStats {
     pub allocated_boxed: u64,
     pub allocated_rc: u64,
     pub allocated_arc: u64,
+    pub reclaimed_objects: u64,
     pub num_gcs: u64,
 }
 
@@ -198,6 +199,7 @@ pub fn stats() -> GcStats {
         allocated_rc: GC_COUNTERS.allocated_rc.load(atomic::Ordering::Relaxed),
         allocated_arc: GC_COUNTERS.allocated_arc.load(atomic::Ordering::Relaxed),
         barriers_visited: GC_COUNTERS.barriers_visited.load(atomic::Ordering::Relaxed),
+        reclaimed_objects: unsafe { bdwgc::GC_reclaimed_objects() },
         num_gcs: unsafe { bdwgc::GC_get_gc_no() },
     }
 }
