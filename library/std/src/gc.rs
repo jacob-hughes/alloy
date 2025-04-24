@@ -191,7 +191,7 @@ pub fn stats() -> GcStats {
         prem_enabled,
         premopt_enabled,
         finalizers_registered: GC_COUNTERS.finalizers_registered.load(atomic::Ordering::Relaxed),
-        finalizers_completed: unsafe { bdwgc::GC_finalized_total() },
+        finalizers_completed: FINALIZERS_RUN.load(atomic::Ordering::Relaxed),
         finalizers_elidable: GC_COUNTERS.finalizers_elidable.load(atomic::Ordering::Relaxed),
         allocated_gc: GC_COUNTERS.allocated_gc.load(atomic::Ordering::Relaxed),
         allocated_boxed: GC_COUNTERS.allocated_boxed.load(atomic::Ordering::Relaxed),
@@ -204,6 +204,8 @@ pub fn stats() -> GcStats {
 
 pub fn init() {
     unsafe { bdwgc::GC_init() }
+    unsafe { bdwgc::GC_set_finalize_on_demand(1) }
+    unsafe { bdwgc::GC_set_finalizer_notifier(start_finalization_thread) }
 }
 
 pub fn thread_registered() -> bool {
@@ -212,6 +214,33 @@ pub fn thread_registered() -> bool {
 
 pub fn keep_alive<T>(ptr: *mut T) {
     unsafe { bdwgc::GC_keep_alive(ptr as *mut u8) }
+}
+
+struct FinalizerData {
+    exists: bool,
+}
+
+use crate::sync::Mutex;
+use crate::sync::atomic::AtomicU64;
+
+static FINALIZER_DATA: Mutex<FinalizerData> = Mutex::new(FinalizerData { exists: false });
+static FINALIZERS_RUN: core::sync::atomic::AtomicU64 = AtomicU64::new(0);
+
+extern "C" fn start_finalization_thread() {
+    let fguard = FINALIZER_DATA.lock().unwrap();
+
+    if fguard.exists {
+        return;
+    }
+
+    crate::thread::spawn(|| {
+        loop {
+            if unsafe { bdwgc::GC_should_invoke_finalizers() } == 1 {
+                let finalized = unsafe { bdwgc::GC_invoke_finalizers() };
+                FINALIZERS_RUN.fetch_add(finalized, atomic::Ordering::Relaxed);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
