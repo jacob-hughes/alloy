@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+#![allow(dead_code)]
 
 #[cfg(not(no_gc))]
 #[allow(nonstandard_style)]
@@ -147,7 +148,7 @@ pub mod metrics {
         }
 
         impl Metrics {
-            pub const fn new() -> Self {
+            pub(super) const fn new() -> Self {
                 Self {
                     finalizers_registered: AtomicU64::new(0),
                     finalizers_elidable: AtomicU64::new(0),
@@ -161,8 +162,8 @@ pub mod metrics {
             }
         }
 
-        pub extern "C" fn record_post_collection(event: crate::GC_EventType) {
-            if event == crate::GC_EventType_GC_EVENT_END {
+        pub(super) extern "C" fn record_post_collection(event: crate::bdwgc::api::GC_EventType) {
+            if event == crate::bdwgc::api::GC_EventType_GC_EVENT_END {
                 super::METRICS.capture(false);
             }
         }
@@ -170,8 +171,8 @@ pub mod metrics {
         impl MetricsImpl for Metrics {
             fn init(&self) {
                 unsafe {
-                    crate::GC_enable_benchmark_stats();
-                    crate::GC_set_on_collection_event(Some(record_post_collection));
+                    crate::bdwgc::api::GC_enable_benchmark_stats();
+                    crate::bdwgc::api::GC_set_on_collection_event(Some(record_post_collection));
                 }
             }
 
@@ -207,7 +208,7 @@ pub mod metrics {
                 // Must preserve this ordering as it's hardcoded inside BDWGC.
                 // See src/bdwgc/misc.c:2812
                 unsafe {
-                    crate::GC_log_metrics(
+                    crate::bdwgc::api::GC_log_metrics(
                         self.finalizers_completed.load(Ordering::Relaxed),
                         self.finalizers_registered.load(Ordering::Relaxed),
                         self.allocated_gc.load(Ordering::Relaxed),
