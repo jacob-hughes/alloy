@@ -43,6 +43,7 @@ unsafe impl GlobalAlloc for GcAllocator {
 
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        metrics::increment(1, metrics::Metric::ExplicitFree);
         unsafe { gc_free(ptr, layout) }
     }
 
@@ -121,6 +122,7 @@ pub mod metrics {
         FinalizersRun,
         FinalizersElided,
         FinalizersRegistered,
+        ExplicitFree,
     }
 
     trait MetricsImpl {
@@ -140,26 +142,28 @@ pub mod metrics {
         #[derive(Debug)]
         pub struct Metrics {
             finalizers_registered: AtomicU64,
-            finalizers_elidable: AtomicU64,
+            finalizers_elided: AtomicU64,
             finalizers_completed: AtomicU64,
             barriers_visited: AtomicU64,
             allocated_gc: AtomicU64,
             allocated_arc: AtomicU64,
             allocated_rc: AtomicU64,
             allocated_boxed: AtomicU64,
+            explicit_free: AtomicU64,
         }
 
         impl Metrics {
             pub const fn new() -> Self {
                 Self {
                     finalizers_registered: AtomicU64::new(0),
-                    finalizers_elidable: AtomicU64::new(0),
+                    finalizers_elided: AtomicU64::new(0),
                     finalizers_completed: AtomicU64::new(0),
                     barriers_visited: AtomicU64::new(0),
                     allocated_gc: AtomicU64::new(0),
                     allocated_arc: AtomicU64::new(0),
                     allocated_rc: AtomicU64::new(0),
                     allocated_boxed: AtomicU64::new(0),
+                    explicit_free: AtomicU64::new(0),
                 }
             }
         }
@@ -199,10 +203,13 @@ pub mod metrics {
                         self.finalizers_completed.fetch_add(amount, Ordering::Relaxed);
                     }
                     Metric::FinalizersElided => {
-                        self.finalizers_completed.fetch_add(amount, Ordering::Relaxed);
+                        self.finalizers_elided.fetch_add(amount, Ordering::Relaxed);
                     }
                     Metric::FinalizersRegistered => {
                         self.finalizers_registered.fetch_add(amount, Ordering::Relaxed);
+                    }
+                    Metric::ExplicitFree => {
+                        self.explicit_free.fetch_add(amount, Ordering::Relaxed);
                     }
                 }
             }
@@ -213,11 +220,13 @@ pub mod metrics {
                 unsafe {
                     api::GC_log_metrics(
                         self.finalizers_completed.load(Ordering::Relaxed),
+                        self.finalizers_elided.load(Ordering::Relaxed),
                         self.finalizers_registered.load(Ordering::Relaxed),
                         self.allocated_gc.load(Ordering::Relaxed),
                         self.allocated_arc.load(Ordering::Relaxed),
                         self.allocated_rc.load(Ordering::Relaxed),
                         self.allocated_boxed.load(Ordering::Relaxed),
+                        self.explicit_free.load(Ordering::Relaxed),
                         is_last as i32,
                     );
                 }
